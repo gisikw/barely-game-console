@@ -1,0 +1,9 @@
+[package]
+name = "barely-game-console"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+eframe = "0.29.1"
+evdev = "0.12.2"
+image = "0.25.5"
