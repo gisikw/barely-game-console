@@ -1,5 +1,5 @@
 [package]
-name = "barely-console"
+name = "barely-game-console"
 version = "0.1.0"
 authors = ["Kevin Gisi <kevin.gisi@calendly.com>"]
 edition = "2021"

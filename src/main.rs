@@ -13,7 +13,7 @@ fn main() {
         .with_cfg(
             dioxus::desktop::Config::new().with_window(
                 dioxus::desktop::WindowBuilder::new()
-                    .with_title("Barely Console")
+                    .with_title("Barely Game Console")
                     .with_always_on_top(false),
             ),
         )
@@ -34,7 +34,7 @@ fn App() -> Element {
                     Some(false) => Some(true),
                 });
             },
-            "Barely Console"
+            "Barely Game Console"
         }
         div { id: "preview",
             class: match *is_active.read() {

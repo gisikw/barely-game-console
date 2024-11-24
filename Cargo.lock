@@ -267,7 +267,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "barely-console"
+name = "barely-game-console"
 version = "0.1.0"
 dependencies = [
  "dioxus",
