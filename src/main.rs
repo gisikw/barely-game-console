@@ -3,30 +3,46 @@
 use dioxus::prelude::*;
 use dioxus_logger::tracing::{info, Level};
 
+static MARIO_BG: &str = "./SMWCase.jpg";
+
 fn main() {
-    // Init logger
     dioxus_logger::init(Level::INFO).expect("failed to init logger");
     info!("starting app");
 
-    dioxus::launch(App);
+    LaunchBuilder::desktop()
+        .with_cfg(
+            dioxus::desktop::Config::new().with_window(
+                dioxus::desktop::WindowBuilder::new()
+                    .with_title("Barely Console")
+                    .with_always_on_top(false),
+            ),
+        )
+        .launch(App);
 }
 
 #[component]
 fn App() -> Element {
-    // Build cool things ✌️
+    let mut is_active = use_signal(|| None::<bool>);
 
     rsx! {
         link { rel: "stylesheet", href: "main.css" }
-        img { src: "header.svg", id: "header" }
-        div { id: "links",
-            a { href: "https://dioxuslabs.com/learn/0.5/", "📚 Learn Dioxus" }
-            a { href: "https://dioxuslabs.com/awesome", "🚀 Awesome Dioxus" }
-            a { href: "https://github.com/dioxus-community/", "📡 Community Libraries" }
-            a { href: "https://github.com/DioxusLabs/dioxus-std", "⚙️ Dioxus Standard Library" }
-            a { href: "https://marketplace.visualstudio.com/items?itemName=DioxusLabs.dioxus",
-                "💫 VSCode Extension"
-            }
-            a { href: "https://discord.gg/XgGxMSkvUM", "👋 Community Discord" }
+        h1 {
+            onclick: move |_| {
+                is_active.set(match is_active() {
+                    None => Some(true),
+                    Some(true) => Some(false),
+                    Some(false) => Some(true),
+                });
+            },
+            "Barely Console"
+        }
+        div { id: "preview",
+            class: match *is_active.read() {
+                None => "hidden",
+                Some(true) => "active",
+                Some(false) => "",
+            },
+            style: format!("background: url({}) no-repeat center center; background-size: contain", MARIO_BG),
         }
     }
 }
