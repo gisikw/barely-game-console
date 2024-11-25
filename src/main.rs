@@ -1,17 +1,70 @@
 use eframe::egui::{self, ColorImage, Context, TextureHandle, TextureOptions};
+use evdev::{Device, InputEventKind, Key};
 use std::sync::Arc;
+use tokio::sync::mpsc::{self, Sender};
+use tokio::sync::Mutex;
+use tokio::task;
 
 static ANIMATION_TIME: f64 = 0.6;
 static TRAVEL_DISTANCE: f64 = 800.0;
 
 static SMW_WORLD: &str = "/home/gisikw/Projects/barely-game-console/assets/SMWCase.jpg";
 
-fn main() -> Result<(), eframe::Error> {
+use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc;
+
+#[tokio::main]
+async fn main() -> Result<(), eframe::Error> {
+    let (event_tx, mut event_rx) = mpsc::channel::<AppEvent>(100);
+
+    let app = Arc::new(Mutex::new(BarelyGameConsole::new()));
+    let app_clone = app.clone();
+
+    tokio::spawn(async move {
+        while let Some(event) = event_rx.recv().await {
+            if let AppEvent::RFIDScanned(data) = event {
+                let mut app = app_clone.lock().unwrap();
+                app.enqueue_rom(Some(data));
+            }
+        }
+    });
+
     eframe::run_native(
         "Barely Game Console",
         eframe::NativeOptions::default(),
-        Box::new(|cc| Ok(Box::new(BarelyGameConsole::new(cc)))),
+        Box::new(|cc| {
+            app.lock().unwrap().initialize(cc); // Pass context if needed
+            Ok(Box::new(app))
+        }),
     )
+}
+
+#[derive(Debug)]
+enum AppEvent {
+    RFIDScanned(String),
+}
+
+async fn listen_rfid(tx: Sender<AppEvent>) -> Result<(), std::io::Error> {
+    let device_path = "/dev/input/event18";
+    let mut device = Device::open(device_path)?;
+
+    println!("Listening for RFID events");
+
+    // FYI: Fails silently if any other process is listening
+    println!("{:?}", device.grab()?);
+
+    loop {
+        for event in device.fetch_events()? {
+            if let InputEventKind::Key(key) = event.kind() {
+                if key == Key::KEY_ENTER && event.value() == 0 {
+                    let rfid_id = format!("{:?}", key);
+                    tx.send(AppEvent::RFIDScanned(rfid_id)).await.unwrap();
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
