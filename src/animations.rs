@@ -10,7 +10,15 @@ pub struct AnimationController {
     pub animation: Animation,
     pub state: AnimationState,
     pub travel_distance: f64,
+    enqueued: bool,
     on_complete: Option<Box<dyn FnOnce() -> Option<AnimationState> + Send>>,
+}
+
+#[derive(Clone)]
+pub struct Animation {
+    start_time: Option<f64>,
+    duration: f64,
+    easing: fn(f64) -> f64,
 }
 
 impl AnimationController {
@@ -19,22 +27,27 @@ impl AnimationController {
             animation: Animation::new(duration, bouncy_easing),
             state: AnimationState::Offscreen,
             travel_distance,
+            enqueued: false,
             on_complete: None,
         }
     }
 
-    pub fn start(
+    pub fn enqueue(
         &mut self,
         state: AnimationState,
-        current_time: f64,
         on_complete: Option<Box<dyn FnOnce() -> Option<AnimationState> + Send>>,
     ) {
         self.state = state;
-        self.animation.start(current_time);
+        self.enqueued = true;
         self.on_complete = on_complete;
     }
 
     pub fn update(&mut self, current_time: f64) -> f64 {
+        if self.enqueued {
+            self.animation.start(current_time);
+            self.enqueued = false;
+        }
+
         let result = match self.state {
             AnimationState::AnimatingIn => {
                 (1.0 - self.animation.sample(current_time).unwrap_or(0.0)) * self.travel_distance
@@ -54,24 +67,13 @@ impl AnimationController {
             };
             if let Some(callback) = self.on_complete.take() {
                 if let Some(next_animation) = callback() {
-                    self.start(next_animation, current_time, None);
+                    self.enqueue(next_animation, None);
                 }
             }
         }
 
         result
     }
-
-    pub fn is_idle(&self) -> bool {
-        matches!(self.state, AnimationState::Idle)
-    }
-}
-
-#[derive(Clone)]
-pub struct Animation {
-    start_time: Option<f64>,
-    duration: f64,
-    easing: fn(f64) -> f64,
 }
 
 impl Animation {

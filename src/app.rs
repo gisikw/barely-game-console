@@ -37,24 +37,19 @@ impl BarelyGameConsole {
             .texture_cache
             .get_or_load(&self.ctx, SMW_WORLD)
             .cloned();
-        let current_time = self.ctx.input(|i| i.time);
         if rom.is_none() {
             self.animation_controller
-                .start(AnimationState::AnimatingOut, current_time, None);
+                .enqueue(AnimationState::AnimatingOut, None);
         } else {
             match self.animation_controller.state {
                 AnimationState::Offscreen => {
-                    self.animation_controller.start(
-                        AnimationState::AnimatingIn,
-                        current_time,
-                        None,
-                    );
+                    self.animation_controller
+                        .enqueue(AnimationState::AnimatingIn, None);
                 }
                 _ => {
                     let ctx = Arc::clone(&self.ctx);
-                    self.animation_controller.start(
+                    self.animation_controller.enqueue(
                         AnimationState::AnimatingOut,
-                        current_time,
                         Some(Box::new(move || {
                             ctx.request_repaint();
                             Some(AnimationState::AnimatingIn)
@@ -100,8 +95,5 @@ impl eframe::App for BarelyGameConsole {
                     self.render_preview(ui);
                 });
             });
-
-        // This is a hack to force timings in enqueue_rom to be correct
-        ctx.request_repaint();
     }
 }
