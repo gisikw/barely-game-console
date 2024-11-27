@@ -2,6 +2,7 @@ mod animations;
 mod app;
 mod assets;
 mod rfid_reader;
+mod rom_preview;
 mod ui;
 
 use crate::app::BarelyGameConsole;
