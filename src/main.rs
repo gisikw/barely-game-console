@@ -1,4 +1,3 @@
-mod animations;
 mod app;
 mod assets;
 mod rfid_reader;
@@ -30,16 +29,46 @@ impl Coordinator {
 
         let ui_app_clone = Arc::clone(&ui_app);
         thread::spawn(move || {
-            let reader = RFIDReader::new();
-            reader.run(|id| {
-                if let Ok(mut app) = ui_app_clone.lock() {
-                    app.enqueue_rom(Some(id));
-                }
-                thread::sleep(Duration::from_secs(5));
-                if let Ok(mut app) = ui_app_clone.lock() {
-                    app.enqueue_rom(None);
-                }
-            });
+            thread::sleep(Duration::from_secs(3));
+            if let Ok(mut app) = ui_app_clone.lock() {
+                app.enqueue_rom(Some("assets/SMWCase.jpg".to_string()));
+            }
+
+            thread::sleep(Duration::from_secs(5));
+            if let Ok(mut app) = ui_app_clone.lock() {
+                app.enqueue_rom(Some("assets/sonic.jpg".to_string()));
+            }
+
+            thread::sleep(Duration::from_secs(5));
+            if let Ok(mut app) = ui_app_clone.lock() {
+                app.enqueue_rom(None);
+            }
+
+            thread::sleep(Duration::from_secs(5));
+            if let Ok(mut app) = ui_app_clone.lock() {
+                app.enqueue_rom(None);
+            }
+
+            thread::sleep(Duration::from_secs(3));
+            if let Ok(mut app) = ui_app_clone.lock() {
+                app.enqueue_rom(Some("assets/SMWCase.jpg".to_string()));
+            }
+
+            // TODO
+            //if let Ok(mut app) = ui_app_clone.lock() {
+            //    app.dismiss()
+            //}
+
+            //let reader = RFIDReader::new();
+            //reader.run(|id| {
+            //    if let Ok(mut app) = ui_app_clone.lock() {
+            //        app.enqueue_rom(Some(id));
+            //    }
+            //    thread::sleep(Duration::from_secs(5));
+            //    if let Ok(mut app) = ui_app_clone.lock() {
+            //        app.enqueue_rom(None);
+            //    }
+            //});
         });
 
         Self { ui_app }

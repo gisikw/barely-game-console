@@ -1,5 +1,7 @@
 use eframe::egui::{ColorImage, Context, TextureHandle, TextureOptions};
+use lazy_static::lazy_static;
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 pub struct TextureCache {
     cache: HashMap<String, TextureHandle>,
@@ -24,4 +26,13 @@ impl TextureCache {
         }
         self.cache.get(path)
     }
+}
+
+lazy_static! {
+    static ref TEXTURE_MANAGER: Mutex<TextureCache> = Mutex::new(TextureCache::new());
+}
+
+pub fn load_texture(ctx: &Context, path: &str) -> Option<TextureHandle> {
+    let mut cache = TEXTURE_MANAGER.lock().expect("Failed to lock TextureCache");
+    cache.get_or_load(ctx, path).cloned()
 }
