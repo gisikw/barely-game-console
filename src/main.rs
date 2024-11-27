@@ -1,9 +1,11 @@
 mod animations;
 mod app;
 mod assets;
+mod rfid_reader;
 mod ui;
 
 use crate::app::BarelyGameConsole;
+use crate::rfid_reader::RFIDReader;
 use eframe::egui;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -26,11 +28,17 @@ impl Coordinator {
         let ui_app = Arc::new(Mutex::new(ui_app));
 
         let ui_app_clone = Arc::clone(&ui_app);
-        thread::spawn(move || loop {
-            thread::sleep(Duration::from_secs(5));
-            if let Ok(mut app) = ui_app_clone.lock() {
-                app.enqueue_rom(Some("Super Mario World".to_string()));
-            }
+        thread::spawn(move || {
+            let reader = RFIDReader::new();
+            reader.run(|id| {
+                if let Ok(mut app) = ui_app_clone.lock() {
+                    app.enqueue_rom(Some(id));
+                }
+                thread::sleep(Duration::from_secs(5));
+                if let Ok(mut app) = ui_app_clone.lock() {
+                    app.enqueue_rom(None);
+                }
+            });
         });
 
         Self { ui_app }

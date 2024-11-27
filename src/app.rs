@@ -38,21 +38,29 @@ impl BarelyGameConsole {
             .get_or_load(&self.ctx, SMW_WORLD)
             .cloned();
         let current_time = self.ctx.input(|i| i.time);
-        match self.animation_controller.state {
-            AnimationState::Offscreen => {
-                self.animation_controller
-                    .start(AnimationState::AnimatingIn, current_time, None);
-            }
-            _ => {
-                let ctx = Arc::clone(&self.ctx);
-                self.animation_controller.start(
-                    AnimationState::AnimatingOut,
-                    current_time,
-                    Some(Box::new(move || {
-                        ctx.request_repaint();
-                        Some(AnimationState::AnimatingIn)
-                    })),
-                );
+        if rom.is_none() {
+            self.animation_controller
+                .start(AnimationState::AnimatingOut, current_time, None);
+        } else {
+            match self.animation_controller.state {
+                AnimationState::Offscreen => {
+                    self.animation_controller.start(
+                        AnimationState::AnimatingIn,
+                        current_time,
+                        None,
+                    );
+                }
+                _ => {
+                    let ctx = Arc::clone(&self.ctx);
+                    self.animation_controller.start(
+                        AnimationState::AnimatingOut,
+                        current_time,
+                        Some(Box::new(move || {
+                            ctx.request_repaint();
+                            Some(AnimationState::AnimatingIn)
+                        })),
+                    );
+                }
             }
         }
         self.ctx.request_repaint();
@@ -86,17 +94,14 @@ impl eframe::App for BarelyGameConsole {
             .frame(egui::Frame::none())
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
-                    if ui.button("Select SMW").clicked() {
-                        self.enqueue_rom(Some("Super Mario World".to_string()));
-                    }
-                    if ui.button("Clear").clicked() {
-                        self.enqueue_rom(None);
-                    }
                     ui.add_space(40.0);
                     draw_header(ui, "Barely Game Console");
                     ui.add_space(20.0);
                     self.render_preview(ui);
                 });
             });
+
+        // This is a hack to force timings in enqueue_rom to be correct
+        ctx.request_repaint();
     }
 }
