@@ -1,30 +1,17 @@
 mod app;
 mod assets;
+mod config;
 mod rfid_reader;
 mod rom_preview;
 mod ui;
 
 use crate::app::BarelyGameConsole;
+use crate::config::Config;
 use crate::rfid_reader::RFIDReader;
 use eframe::egui;
-use serde::Deserialize;
-use std::fs;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use toml;
-
-#[derive(Deserialize, Debug)]
-struct Config {
-    rfid_cards: std::collections::HashMap<String, CardInfo>,
-}
-
-#[derive(Deserialize, Debug)]
-struct CardInfo {
-    rom_path: String,
-    emulator: String,
-    artwork: String,
-}
 
 fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
@@ -40,61 +27,11 @@ struct Coordinator {
 
 impl Coordinator {
     fn new(ui_app: BarelyGameConsole) -> Self {
-        let config = fs::read_to_string("config.toml").expect("Failed to read config.toml");
-        let config: Config = toml::from_str(&config).expect("Failed to parse config.toml");
-        println!("{:?}", config);
+        let config = Config::load();
 
         let ui_app = Arc::new(Mutex::new(ui_app));
-
-        let ui_app_clone = Arc::clone(&ui_app);
-        thread::spawn(move || {
-            thread::sleep(Duration::from_secs(3));
-            if let Ok(mut app) = ui_app_clone.lock() {
-                app.enqueue_rom(Some(
-                    config.rfid_cards.get("1234567890").unwrap().artwork.clone(),
-                ));
-            }
-
-            thread::sleep(Duration::from_secs(5));
-            if let Ok(mut app) = ui_app_clone.lock() {
-                app.enqueue_rom(Some(
-                    config.rfid_cards.get("0987654321").unwrap().artwork.clone(),
-                ));
-            }
-
-            thread::sleep(Duration::from_secs(5));
-            if let Ok(mut app) = ui_app_clone.lock() {
-                app.enqueue_rom(None);
-            }
-
-            thread::sleep(Duration::from_secs(5));
-            if let Ok(mut app) = ui_app_clone.lock() {
-                app.enqueue_rom(None);
-            }
-
-            thread::sleep(Duration::from_secs(3));
-            if let Ok(mut app) = ui_app_clone.lock() {
-                app.enqueue_rom(Some(
-                    config.rfid_cards.get("1234567890").unwrap().artwork.clone(),
-                ));
-            }
-
-            // TODO
-            //if let Ok(mut app) = ui_app_clone.lock() {
-            //    app.dismiss()
-            //}
-
-            //let reader = RFIDReader::new();
-            //reader.run(|id| {
-            //    if let Ok(mut app) = ui_app_clone.lock() {
-            //        app.enqueue_rom(Some(id));
-            //    }
-            //    thread::sleep(Duration::from_secs(5));
-            //    if let Ok(mut app) = ui_app_clone.lock() {
-            //        app.enqueue_rom(None);
-            //    }
-            //});
-        });
+        automated_test(config.clone(), Arc::clone(&ui_app));
+        rfid_listener(config.clone(), Arc::clone(&ui_app));
 
         Self { ui_app }
     }
@@ -106,4 +43,54 @@ impl eframe::App for Coordinator {
             app.update(ctx, frame);
         }
     }
+}
+
+fn automated_test(config: Config, ui_app: Arc<Mutex<BarelyGameConsole>>) {
+    thread::spawn(move || {
+        thread::sleep(Duration::from_secs(3));
+        if let Ok(mut app) = ui_app.lock() {
+            app.enqueue_rom(Some(
+                config.rfid_cards.get("1234567890").unwrap().artwork.clone(),
+            ));
+        }
+
+        thread::sleep(Duration::from_secs(5));
+        if let Ok(mut app) = ui_app.lock() {
+            app.enqueue_rom(Some(
+                config.rfid_cards.get("0987654321").unwrap().artwork.clone(),
+            ));
+        }
+
+        thread::sleep(Duration::from_secs(5));
+        if let Ok(mut app) = ui_app.lock() {
+            app.enqueue_rom(None);
+        }
+
+        thread::sleep(Duration::from_secs(5));
+        if let Ok(mut app) = ui_app.lock() {
+            app.enqueue_rom(None);
+        }
+
+        thread::sleep(Duration::from_secs(3));
+        if let Ok(mut app) = ui_app.lock() {
+            app.enqueue_rom(Some(
+                config.rfid_cards.get("1234567890").unwrap().artwork.clone(),
+            ));
+        }
+    });
+}
+
+fn rfid_listener(config: Config, ui_app: Arc<Mutex<BarelyGameConsole>>) {
+    thread::spawn(move || {
+        let reader = RFIDReader::new();
+        reader.run(|id| {
+            if let Ok(mut app) = ui_app.lock() {
+                app.enqueue_rom(Some(id));
+            }
+            thread::sleep(Duration::from_secs(5));
+            if let Ok(mut app) = ui_app.lock() {
+                app.enqueue_rom(None);
+            }
+        });
+    });
 }
