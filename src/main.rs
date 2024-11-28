@@ -7,9 +7,24 @@ mod ui;
 use crate::app::BarelyGameConsole;
 use crate::rfid_reader::RFIDReader;
 use eframe::egui;
+use serde::Deserialize;
+use std::fs;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use toml;
+
+#[derive(Deserialize, Debug)]
+struct Config {
+    rfid_cards: std::collections::HashMap<String, CardInfo>,
+}
+
+#[derive(Deserialize, Debug)]
+struct CardInfo {
+    rom_path: String,
+    emulator: String,
+    artwork: String,
+}
 
 fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
@@ -25,18 +40,26 @@ struct Coordinator {
 
 impl Coordinator {
     fn new(ui_app: BarelyGameConsole) -> Self {
+        let config = fs::read_to_string("config.toml").expect("Failed to read config.toml");
+        let config: Config = toml::from_str(&config).expect("Failed to parse config.toml");
+        println!("{:?}", config);
+
         let ui_app = Arc::new(Mutex::new(ui_app));
 
         let ui_app_clone = Arc::clone(&ui_app);
         thread::spawn(move || {
             thread::sleep(Duration::from_secs(3));
             if let Ok(mut app) = ui_app_clone.lock() {
-                app.enqueue_rom(Some("assets/SMWCase.jpg".to_string()));
+                app.enqueue_rom(Some(
+                    config.rfid_cards.get("1234567890").unwrap().artwork.clone(),
+                ));
             }
 
             thread::sleep(Duration::from_secs(5));
             if let Ok(mut app) = ui_app_clone.lock() {
-                app.enqueue_rom(Some("assets/sonic.jpg".to_string()));
+                app.enqueue_rom(Some(
+                    config.rfid_cards.get("0987654321").unwrap().artwork.clone(),
+                ));
             }
 
             thread::sleep(Duration::from_secs(5));
@@ -51,7 +74,9 @@ impl Coordinator {
 
             thread::sleep(Duration::from_secs(3));
             if let Ok(mut app) = ui_app_clone.lock() {
-                app.enqueue_rom(Some("assets/SMWCase.jpg".to_string()));
+                app.enqueue_rom(Some(
+                    config.rfid_cards.get("1234567890").unwrap().artwork.clone(),
+                ));
             }
 
             // TODO

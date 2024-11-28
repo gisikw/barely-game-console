@@ -477,6 +477,8 @@ dependencies = [
  "evdev",
  "image",
  "lazy_static",
+ "serde",
+ "toml",
 ]
 
 [[package]]

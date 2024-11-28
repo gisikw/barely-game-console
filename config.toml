@@ -1,0 +1,11 @@
+[rfid_cards]
+
+[rfid_cards."1234567890"]
+rom_path = "/path/to/rom1"
+emulator = "retroarch"
+artwork = "assets/SMWCase.jpg"
+
+[rfid_cards."0987654321"]
+rom_path = "/path/to/rom2"
+emulator = "mupen64"
+artwork = "assets/sonic.jpg"

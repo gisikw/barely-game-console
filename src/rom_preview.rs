@@ -53,7 +53,7 @@ impl RomPreview {
 
     pub fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         let current_time = ctx.input(|i| i.time);
-        println!("In update ({:?}, {:?})", self.state, current_time);
+        // println!("In update ({:?}, {:?})", self.state, current_time);
         if self.start_time.is_none() {
             self.start_time = Some(current_time);
         }
