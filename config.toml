@@ -1,11 +1,11 @@
 [rfid_cards]
 
-[rfid_cards."1234567890"]
-rom_path = "/path/to/rom1"
-emulator = "retroarch"
+[rfid_cards."0005593265"]
+rom_path = "/opt/roms/snes/SuperMarioWorld.zip"
+emulator = "/usr/lib/x86_64-linux-gnu/libretro/snes9x_libretro.so"
 artwork = "assets/SMWCase.jpg"
 
-[rfid_cards."0987654321"]
-rom_path = "/path/to/rom2"
-emulator = "mupen64"
+[rfid_cards."0007569065"]
+rom_path = "/opt/roms/genesis/Sonic.zip"
+emulator = "/usr/lib/x86_64-linux-gnu/libretro/genesis_plus_gx_libretro.so"
 artwork = "assets/sonic.jpg"

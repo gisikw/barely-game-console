@@ -8,5 +8,6 @@ eframe = "0.29.1"
 evdev = "0.12.2"
 image = "0.25.5"
 lazy_static = "1.5.0"
+nix = { version = "0.29.0", features = ["signal"] }
 serde = { version = "1.0.215", features = ["derive"] }
 toml = "0.8.19"

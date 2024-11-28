@@ -477,6 +477,7 @@ dependencies = [
  "evdev",
  "image",
  "lazy_static",
+ "nix 0.29.0",
  "serde",
  "toml",
 ]
