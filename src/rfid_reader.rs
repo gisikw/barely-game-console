@@ -1,6 +1,9 @@
 use evdev::{Device, InputEventKind, Key};
+use std::fs;
 
 pub struct RFIDReader;
+
+static DEVICE_NAME: &str = "HID 413d:2107";
 
 impl RFIDReader {
     pub fn new() -> Self {
@@ -11,7 +14,7 @@ impl RFIDReader {
     where
         F: FnMut(String),
     {
-        let device_path = "/dev/input/event18";
+        let device_path = find_device_path_by_name(DEVICE_NAME).unwrap();
         let mut device = Device::open(device_path).expect("Failed to open it womp womp");
 
         let _ = device.grab();
@@ -63,4 +66,23 @@ impl RFIDReader {
             }
         }
     }
+}
+
+fn find_device_path_by_name(target_name: &str) -> Option<String> {
+    let entries = fs::read_dir("/dev/input").expect("Failed to read /dev/input");
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            if path.to_str().unwrap().contains("event") {
+                if let Ok(device) = Device::open(&path) {
+                    if let Some(name) = device.name() {
+                        if name == target_name {
+                            return Some(path.to_string_lossy().to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
