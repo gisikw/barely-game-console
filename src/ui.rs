@@ -35,21 +35,24 @@ pub fn draw_header(ui: &mut egui::Ui, text: &str) {
     ui.add_space(72.0);
 }
 
-pub fn draw_preview(ui: &mut egui::Ui, offset: f64, texture: &Option<TextureHandle>) {
+pub fn draw_preview(ui: &mut egui::Ui, offset: f64, opacity: f64, texture: &Option<TextureHandle>) {
     let preview_size = egui::Vec2::new(400.0, 400.0);
     let available_size = ui.available_size();
     let center_y = (available_size.y - preview_size.y) / 2.0;
 
     ui.add_space((center_y + offset as f32).max(0.0));
 
+    let mut painter = ui.painter().clone();
+    painter.set_opacity(opacity as f32);
+
     let (rect, _) = ui.allocate_exact_size(preview_size, egui::Sense::hover());
-    ui.painter().rect_filled(
+    painter.rect_filled(
         rect,
         egui::Rounding::same(20.0),
         egui::Color32::from_rgba_premultiplied(0, 0, 0, 51),
     );
 
-    ui.painter().rect_stroke(
+    painter.rect_stroke(
         rect.expand(8.0),
         egui::Rounding::same(20.0),
         egui::Stroke::new(8.0, egui::Color32::from_rgb(238, 238, 187)),
@@ -76,7 +79,7 @@ pub fn draw_preview(ui: &mut egui::Ui, offset: f64, texture: &Option<TextureHand
             )
         };
 
-        ui.painter().image(
+        painter.image(
             texture.id(),
             adjusted_rect,
             egui::Rect::from_min_max(egui::Pos2::new(0.0, 0.0), egui::Pos2::new(1.0, 1.0)),

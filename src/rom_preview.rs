@@ -64,7 +64,18 @@ impl RomPreview {
             _ => self.sample_animation(current_time),
         };
 
-        draw_preview(ui, offset, &self.texture);
+        // Meh, this needs its own curve
+        let opacity = match self.state {
+            AnimationState::Active => 1.0,
+            AnimationState::Offscreen => 0.0,
+            AnimationState::FlyingIn => self.progress(current_time),
+            AnimationState::FlyingOut => 1.0 - self.progress(current_time),
+            AnimationState::ReverseFlyingIn(original_start_time) => {
+                (self.start_time.unwrap() - original_start_time - current_time) / ANIMATION_TIME
+            }
+        };
+
+        draw_preview(ui, offset, opacity, &self.texture);
 
         self.resolve_animation_state(current_time, ctx);
     }
