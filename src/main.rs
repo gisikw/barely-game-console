@@ -84,14 +84,36 @@ fn device_listener(config: Config, ui_app: Arc<Mutex<BarelyGameConsole>>) {
                                         thread::spawn({
                                             let game_pid = Arc::clone(&game_pid);
                                             move || {
-                                                if let Ok(mut child) = Command::new("retroarch")
-                                                    .arg("-L")
-                                                    .arg(rom.emulator)
-                                                    .arg(rom.rom_path)
-                                                    .arg("--appendconfig")
-                                                    .arg("retroarch.cfg")
-                                                    .spawn()
-                                                {
+                                                let mut cmd = if let Some(command) = &rom.command {
+                                                    let mut iter = command.iter();
+                                                    let first =
+                                                        iter.next().expect("Empty command list");
+                                                    let mut cmd = Command::new(first);
+                                                    cmd.args(iter);
+                                                    cmd
+                                                } else {
+                                                    let emulator = rom
+                                                        .emulator
+                                                        .as_ref()
+                                                        .expect("Missing emulator");
+                                                    let rom_path = rom
+                                                        .rom_path
+                                                        .as_ref()
+                                                        .expect("Missing rom path");
+                                                    let mut cmd = Command::new("retroarch");
+                                                    cmd.arg("-L")
+                                                        .arg(emulator)
+                                                        .arg(rom_path)
+                                                        .arg("--appendconfig")
+                                                        .arg("retroarch.cfg");
+                                                    cmd
+                                                };
+
+                                                if let Some(dir) = &rom.working_dir {
+                                                    cmd.current_dir(dir);
+                                                }
+
+                                                if let Ok(mut child) = cmd.spawn() {
                                                     if let Ok(mut pid) = game_pid.lock() {
                                                         *pid = Some(child.id());
                                                     }

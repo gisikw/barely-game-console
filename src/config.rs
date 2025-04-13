@@ -8,8 +8,10 @@ pub struct Config {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct CardInfo {
-    pub rom_path: String,
-    pub emulator: String,
+    pub rom_path: Option<String>,
+    pub emulator: Option<String>,
+    pub command: Option<Vec<String>>,
+    pub working_dir: Option<String>,
     pub artwork: String,
 }
 
