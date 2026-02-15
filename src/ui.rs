@@ -9,27 +9,28 @@ pub fn draw_background(ctx: &Context, texture: &TextureHandle) {
 }
 
 pub fn draw_header(ui: &mut egui::Ui, text: &str) {
-    let shadow_color = egui::Color32::from_rgb(153, 153, 153);
-    let stroke_color = egui::Color32::from_rgb(102, 102, 136);
+    let transparent = egui::Color32::from_rgba_unmultiplied(0, 0, 0, 0);
 
     let rect = ui.available_rect_before_wrap();
     let center_x = rect.center().x;
     let top_y = rect.top() + 40.0;
 
+    // Invisible "shadow"
     ui.painter().text(
         egui::Pos2::new(center_x + 2.0, top_y + 2.0),
         egui::Align2::CENTER_CENTER,
         text,
         egui::FontId::proportional(72.0),
-        shadow_color,
+        transparent,
     );
 
+    // Invisible "stroke"
     ui.painter().text(
         egui::Pos2::new(center_x, top_y),
         egui::Align2::CENTER_CENTER,
         text,
         egui::FontId::proportional(72.0),
-        stroke_color,
+        transparent,
     );
 
     ui.add_space(72.0);
