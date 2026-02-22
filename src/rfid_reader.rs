@@ -68,7 +68,7 @@ impl RFIDReader {
     }
 }
 
-fn find_device_path_by_name(target_name: &str) -> Option<String> {
+pub fn find_device_path_by_name(target_name: &str) -> Option<String> {
     let entries = fs::read_dir("/dev/input").expect("Failed to read /dev/input");
     for entry in entries {
         if let Ok(entry) = entry {

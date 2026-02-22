@@ -61,8 +61,9 @@ fn device_listener(config: Config, ui_app: Arc<Mutex<BarelyGameConsole>>) {
         let timer_version = Arc::clone(&timer_version);
         let ui_app = Arc::clone(&ui_app);
         move || {
-            let device_path = "/dev/input/event2";
-            let mut device = Device::open(device_path).expect("Failed to open the button");
+            let device_path = rfid_reader::find_device_path_by_name("Power Button")
+                .expect("No Power Button device found in /dev/input");
+            let mut device = Device::open(&device_path).expect("Failed to open the button");
             let _ = device.grab();
 
             loop {
