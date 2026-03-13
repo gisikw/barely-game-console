@@ -12,7 +12,7 @@ use eframe::egui;
 use evdev::{Device, InputEventKind, Key};
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -60,14 +60,35 @@ fn device_listener(config: Config, ui_app: Arc<Mutex<BarelyGameConsole>>) {
         let selected_rom = Arc::clone(&selected_rom);
         let timer_version = Arc::clone(&timer_version);
         let ui_app = Arc::clone(&ui_app);
-        move || {
-            let device_path = rfid_reader::find_device_path_by_name("Power Button")
-                .expect("No Power Button device found in /dev/input");
-            let mut device = Device::open(&device_path).expect("Failed to open the button");
+        move || loop {
+            let device_path = match rfid_reader::find_device_path_by_name("Power Button") {
+                Some(path) => path,
+                None => {
+                    eprintln!("Power Button device not found, retrying...");
+                    thread::sleep(Duration::from_secs(1));
+                    continue;
+                }
+            };
+            let mut device = match Device::open(&device_path) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("Failed to open Power Button: {}, retrying...", e);
+                    thread::sleep(Duration::from_secs(1));
+                    continue;
+                }
+            };
             let _ = device.grab();
+            eprintln!("Power button ready on {}", device_path);
 
-            loop {
-                for event in device.fetch_events().expect("could not fetch event") {
+            'read: loop {
+                let events = match device.fetch_events() {
+                    Ok(events) => events,
+                    Err(e) => {
+                        eprintln!("Power button error: {}, re-opening device...", e);
+                        break 'read;
+                    }
+                };
+                for event in events {
                     if event.value() == 0 && event.kind() == InputEventKind::Key(Key::KEY_POWER) {
                         if let Ok(pid) = game_pid.lock() {
                             if let Some(pid) = *pid {
@@ -114,6 +135,7 @@ fn device_listener(config: Config, ui_app: Arc<Mutex<BarelyGameConsole>>) {
                                                     cmd.current_dir(dir);
                                                 }
 
+                                                cmd.stdin(Stdio::null());
                                                 if let Ok(mut child) = cmd.spawn() {
                                                     if let Ok(mut pid) = game_pid.lock() {
                                                         *pid = Some(child.id());
