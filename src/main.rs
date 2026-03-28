@@ -16,7 +16,7 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
@@ -33,6 +33,7 @@ struct Coordinator {
 impl Coordinator {
     fn new(ui_app: BarelyGameConsole) -> Self {
         let config = Config::load();
+        eprintln!("barely-game-console started, {} cards configured", config.rfid_cards.len());
 
         let ui_app = Arc::new(Mutex::new(ui_app));
         device_listener(config.clone(), Arc::clone(&ui_app));
@@ -92,6 +93,7 @@ fn device_listener(config: Config, ui_app: Arc<Mutex<BarelyGameConsole>>) {
                     if event.value() == 0 && event.kind() == InputEventKind::Key(Key::KEY_POWER) {
                         if let Ok(pid) = game_pid.lock() {
                             if let Some(pid) = *pid {
+                                eprintln!("[power] killing game pid={}", pid);
                                 let _ = kill(Pid::from_raw(pid as i32), Signal::SIGKILL);
                             } else {
                                 if let Ok(mut selected_rom) = selected_rom.lock() {
@@ -106,13 +108,14 @@ fn device_listener(config: Config, ui_app: Arc<Mutex<BarelyGameConsole>>) {
                                         thread::spawn({
                                             let game_pid = Arc::clone(&game_pid);
                                             move || {
-                                                let mut cmd = if let Some(command) = &rom.command {
+                                                let (cmd_desc, mut cmd) = if let Some(command) = &rom.command {
+                                                    let desc = command.join(" ");
                                                     let mut iter = command.iter();
                                                     let first =
                                                         iter.next().expect("Empty command list");
                                                     let mut cmd = Command::new(first);
                                                     cmd.args(iter);
-                                                    cmd
+                                                    (desc, cmd)
                                                 } else {
                                                     let emulator = rom
                                                         .emulator
@@ -122,27 +125,48 @@ fn device_listener(config: Config, ui_app: Arc<Mutex<BarelyGameConsole>>) {
                                                         .rom_path
                                                         .as_ref()
                                                         .expect("Missing rom path");
+                                                    let desc = format!("retroarch -L {} {}", emulator, rom_path);
                                                     let mut cmd = Command::new("retroarch");
                                                     cmd.arg("-L")
                                                         .arg(emulator)
                                                         .arg(rom_path)
                                                         .arg("--appendconfig")
                                                         .arg("retroarch.cfg");
-                                                    cmd
+                                                    (desc, cmd)
                                                 };
 
                                                 if let Some(dir) = &rom.working_dir {
                                                     cmd.current_dir(dir);
                                                 }
 
+                                                eprintln!("[launch] {}", cmd_desc);
                                                 cmd.stdin(Stdio::null());
-                                                if let Ok(mut child) = cmd.spawn() {
-                                                    if let Ok(mut pid) = game_pid.lock() {
-                                                        *pid = Some(child.id());
+                                                match cmd.spawn() {
+                                                    Ok(mut child) => {
+                                                        let child_pid = child.id();
+                                                        eprintln!("[launch] spawned pid={}", child_pid);
+                                                        if let Ok(mut pid) = game_pid.lock() {
+                                                            *pid = Some(child_pid);
+                                                        }
+                                                        let started = Instant::now();
+                                                        let status = child.wait();
+                                                        let elapsed = started.elapsed();
+                                                        match status {
+                                                            Ok(s) => eprintln!(
+                                                                "[exit] pid={} status={} after {:.0?}",
+                                                                child_pid, s, elapsed
+                                                            ),
+                                                            Err(e) => eprintln!(
+                                                                "[exit] pid={} wait error: {} after {:.0?}",
+                                                                child_pid, e, elapsed
+                                                            ),
+                                                        }
+                                                        if let Ok(mut pid) = game_pid.lock() {
+                                                            *pid = None;
+                                                        }
                                                     }
-                                                    let _ = child.wait();
-                                                    if let Ok(mut pid) = game_pid.lock() {
-                                                        *pid = None;
+                                                    Err(e) => {
+                                                        eprintln!("[launch] failed to spawn: {}", e);
                                                     }
                                                 }
                                             }
@@ -168,6 +192,7 @@ fn device_listener(config: Config, ui_app: Arc<Mutex<BarelyGameConsole>>) {
                 if let Ok(pid) = game_pid.lock() {
                     if (*pid).is_none() {
                         if let Some(rom) = config.rfid_cards.get(&id) {
+                            eprintln!("[rfid] card={} artwork={}", id, rom.artwork);
                             if let Ok(mut sel_rom) = selected_rom.lock() {
                                 *sel_rom = Some(rom.clone());
 
@@ -193,7 +218,7 @@ fn device_listener(config: Config, ui_app: Arc<Mutex<BarelyGameConsole>>) {
                                 });
                             }
                         } else {
-                            println!("Unknown id: {:?}", id);
+                            eprintln!("[rfid] unknown card={}", id);
                         }
                     }
                 }
