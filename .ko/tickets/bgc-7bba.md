@@ -1,8 +1,7 @@
 ---
 id: bgc-7bba
-status: open
+status: closed
 deps: []
-links: []
 created: 2026-02-22T18:18:46Z
 type: task
 priority: 2

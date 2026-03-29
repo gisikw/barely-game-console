@@ -129,9 +129,11 @@ fn device_listener(config: Config, ui_app: Arc<Mutex<BarelyGameConsole>>) {
                                                     let mut cmd = Command::new("retroarch");
                                                     cmd.arg("-L")
                                                         .arg(emulator)
-                                                        .arg(rom_path)
-                                                        .arg("--appendconfig")
-                                                        .arg("retroarch.cfg");
+                                                        .arg(rom_path);
+                                                    let config_path = std::env::var("BGC_RETROARCH_CONFIG")
+                                                        .unwrap_or_else(|_| "retroarch.cfg".to_string());
+                                                    cmd.arg("--appendconfig")
+                                                        .arg(&config_path);
                                                     (desc, cmd)
                                                 };
 

@@ -45,8 +45,11 @@
           inherit cargoArtifacts;
 
           postInstall = ''
+            mkdir -p $out/share/barely-game-console
+            cp ${./retroarch.cfg} $out/share/barely-game-console/retroarch.cfg
             wrapProgram $out/bin/barely-game-console \
-              --prefix LD_LIBRARY_PATH : ${runtimeLibPath}
+              --prefix LD_LIBRARY_PATH : ${runtimeLibPath} \
+              --set BGC_RETROARCH_CONFIG $out/share/barely-game-console/retroarch.cfg
             cp ${./overlay.nix} $out/overlay.nix
           '';
         });
