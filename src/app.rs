@@ -24,8 +24,8 @@ impl BarelyGameConsole {
     }
 }
 
-impl eframe::App for BarelyGameConsole {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+impl BarelyGameConsole {
+    pub fn update(&mut self, ctx: &egui::Context) {
         if let Some(texture) = load_texture(&ctx, "assets/background.png") {
             draw_background(ctx, &texture);
         }

@@ -36,3 +36,10 @@ pub fn load_texture(ctx: &Context, path: &str) -> Option<TextureHandle> {
     let mut cache = TEXTURE_MANAGER.lock().expect("Failed to lock TextureCache");
     cache.get_or_load(ctx, path).cloned()
 }
+
+/// Clear all cached textures. Must be called when restarting eframe,
+/// since TextureHandles from the old egui context are invalid.
+pub fn clear_texture_cache() {
+    let mut cache = TEXTURE_MANAGER.lock().expect("Failed to lock TextureCache");
+    cache.cache.clear();
+}
