@@ -13,7 +13,7 @@ use evdev::{Device, InputEventKind, Key};
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -21,19 +21,21 @@ use std::time::{Duration, Instant};
 /// Shared state between the main loop, device listener threads, and the UI.
 ///
 /// The main loop alternates between running eframe (the launcher UI) and running
-/// a game process. When a game launches, eframe exits — destroying its Wayland
-/// surface — so the game is the sole Wayland client under Cage. This eliminates
-/// the multi-surface frame callback deadlock.
+/// a game process. When a game launches, we spawn it first (so Cage has a Wayland
+/// client), then close eframe after a delay. This ensures Cage always has at least
+/// one surface and doesn't exit. With eframe's surface destroyed during gameplay,
+/// Cage only services RetroArch — eliminating the frame callback deadlock.
 struct SharedState {
     /// The current UI app instance (None when eframe isn't running).
     ui_app: Mutex<Option<BarelyGameConsole>>,
     /// Set by the power button thread to signal a game launch.
-    /// The main loop reads this after eframe exits.
     pending_launch: Mutex<Option<CardInfo>>,
     /// The currently-previewed ROM (set by RFID, consumed by power button).
     selected_rom: Mutex<Option<CardInfo>>,
-    /// PID of the running game process (set by main loop, read by power button for kill).
+    /// PID of the running game process (set by game thread, read by power button for kill).
     game_pid: Mutex<Option<u32>>,
+    /// True while a game thread is running (including after child exits, until main loop resets).
+    game_active: AtomicBool,
     /// Timer version for debouncing card preview timeouts.
     timer_version: AtomicUsize,
 }
@@ -45,6 +47,7 @@ impl SharedState {
             pending_launch: Mutex::new(None),
             selected_rom: Mutex::new(None),
             game_pid: Mutex::new(None),
+            game_active: AtomicBool::new(false),
             timer_version: AtomicUsize::new(0),
         }
     }
@@ -58,22 +61,51 @@ impl SharedState {
     }
 }
 
-/// The eframe App wrapper. Delegates rendering to BarelyGameConsole
-/// and closes the window when a game launch is pending.
+/// The eframe App wrapper. Delegates rendering to BarelyGameConsole.
+///
+/// When a game launch is pending, it spawns the game process first (so Cage
+/// keeps a Wayland client), waits for RetroArch to create its surface, then
+/// closes the eframe window.
 struct Launcher {
     shared: Arc<SharedState>,
+    /// When set, close the window after this deadline (gives RetroArch time to map its surface).
+    close_after: Option<Instant>,
 }
 
 impl eframe::App for Launcher {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // If a game launch is pending, close the window to destroy the Wayland surface
-        if let Ok(pending) = self.shared.pending_launch.lock() {
-            if pending.is_some() {
+        // Phase 2: deadline reached — close the window
+        if let Some(deadline) = self.close_after {
+            if Instant::now() >= deadline {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 return;
             }
+            // Keep ticking until the deadline
+            ctx.request_repaint();
+            return;
         }
 
+        // Phase 1: pending launch detected — spawn the game, schedule delayed close
+        let should_launch = self
+            .shared
+            .pending_launch
+            .lock()
+            .ok()
+            .map_or(false, |p| p.is_some());
+
+        if should_launch {
+            let card = self.shared.pending_launch.lock().unwrap().clone().unwrap();
+            self.shared.game_active.store(true, Ordering::SeqCst);
+            let shared = Arc::clone(&self.shared);
+            thread::spawn(move || run_game(&card, &shared));
+            // Give RetroArch 1 second to create its Wayland surface before we close ours
+            self.close_after = Some(Instant::now() + Duration::from_secs(1));
+            eprintln!("[surface] game spawned, closing eframe in 1s");
+            ctx.request_repaint();
+            return;
+        }
+
+        // Normal UI rendering
         if let Ok(mut app) = self.shared.ui_app.lock() {
             if let Some(app) = app.as_mut() {
                 app.update(ctx);
@@ -108,6 +140,7 @@ fn main() -> Result<(), eframe::Error> {
                     *shared.ui_app.lock().unwrap() = Some(app);
                     Ok(Box::new(Launcher {
                         shared: Arc::clone(&shared),
+                        close_after: None,
                     }))
                 }
             }),
@@ -115,11 +148,16 @@ fn main() -> Result<(), eframe::Error> {
 
         // eframe exited — clear the stale UI app reference
         *shared.ui_app.lock().unwrap() = None;
+        eprintln!("[surface] eframe exited");
 
-        // Check if there's a game to launch
-        let game = shared.pending_launch.lock().unwrap().take();
-        if let Some(card) = game {
-            run_game(&card, &shared);
+        if shared.game_active.load(Ordering::SeqCst) {
+            // Game was spawned before eframe closed — wait for it to finish
+            eprintln!("[surface] waiting for game to exit");
+            while shared.game_active.load(Ordering::SeqCst) {
+                thread::sleep(Duration::from_millis(100));
+            }
+            // Clear the consumed pending_launch
+            shared.pending_launch.lock().unwrap().take();
             // Game exited — loop back to restart eframe
         } else {
             // Window closed without a game launch (shouldn't happen in kiosk mode)
@@ -130,8 +168,8 @@ fn main() -> Result<(), eframe::Error> {
     Ok(())
 }
 
-fn run_game(card: &CardInfo, shared: &SharedState) {
-    let (cmd_desc, mut cmd) = if let Some(command) = &card.command {
+fn build_game_command(card: &CardInfo) -> (String, Command) {
+    if let Some(command) = &card.command {
         let desc = command.join(" ");
         let mut iter = command.iter();
         let first = iter.next().expect("Empty command list");
@@ -148,7 +186,13 @@ fn run_game(card: &CardInfo, shared: &SharedState) {
             .unwrap_or_else(|_| "retroarch.cfg".to_string());
         cmd.arg("--appendconfig").arg(&config_path);
         (desc, cmd)
-    };
+    }
+}
+
+/// Spawn and wait for a game process. Runs in a dedicated thread so the main
+/// thread can close eframe after a delay (ensuring Cage always has a client).
+fn run_game(card: &CardInfo, shared: &SharedState) {
+    let (cmd_desc, mut cmd) = build_game_command(card);
 
     if let Some(dir) = &card.working_dir {
         cmd.current_dir(dir);
@@ -161,9 +205,7 @@ fn run_game(card: &CardInfo, shared: &SharedState) {
         Ok(mut child) => {
             let child_pid = child.id();
             eprintln!("[launch] spawned pid={}", child_pid);
-            if let Ok(mut pid) = shared.game_pid.lock() {
-                *pid = Some(child_pid);
-            }
+            *shared.game_pid.lock().unwrap() = Some(child_pid);
             let started = Instant::now();
             let status = child.wait();
             let elapsed = started.elapsed();
@@ -177,14 +219,13 @@ fn run_game(card: &CardInfo, shared: &SharedState) {
                     child_pid, e, elapsed
                 ),
             }
-            if let Ok(mut pid) = shared.game_pid.lock() {
-                *pid = None;
-            }
+            *shared.game_pid.lock().unwrap() = None;
         }
         Err(e) => {
             eprintln!("[launch] failed to spawn: {}", e);
         }
     }
+    shared.game_active.store(false, Ordering::SeqCst);
 }
 
 fn device_listener(config: Config, shared: Arc<SharedState>) {
