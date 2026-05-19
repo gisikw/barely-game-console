@@ -2,4 +2,6 @@
 /result
 .env
 
-.ko/
+.ko/tickets/
+.ko/builds/
+.ko/agent.*
